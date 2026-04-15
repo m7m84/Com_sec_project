@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Cipher Tool</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Encryption / Decryption </h1>
+
+        <label>Choose Cipher:</label>
+        <select id="cipherType">
+            <option value="affine">Affine Cipher</option>
+            <option value="playfair">Playfair Cipher</option>
+            <option value="feistel">Feistel Cipher</option>
+        </select>
+
+        <label>Enter Text:</label>
+        <textarea id="inputText"></textarea>
+
+        <div id="affineKeys">
+            <label>Key a:</label>
+            <input type="number" id="keyA" value="5">
+            <label>Key b:</label>
+            <input type="number" id="keyB" value="8">
+        </div>
+
+        <div id="playfairKey" style="display:none;">
+            <label>Keyword:</label>
+            <input type="text" id="pfKey">
+        </div>
+
+        <div class="buttons">
+            <button onclick="process(true)">Encrypt</button>
+            <button onclick="process(false)">Decrypt</button>
+        </div>
+
+        <h2>Result:</h2>
+        <textarea id="outputText" readonly></textarea>
+    </div>
+
+    <script>
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789";
+        const m = chars.length;
+
+        // Switch UI
+        const cipherSelect = document.getElementById("cipherType");
+        cipherSelect.addEventListener("change", () => {
+            document.getElementById("affineKeys").style.display = cipherSelect.value === "affine" ? "block" : "none";
+            document.getElementById("playfairKey").style.display = cipherSelect.value === "playfair" ? "block" : "none";
+        });
+
+        function process(isEncrypt) {
+            const type = cipherSelect.value;
+            if (type === "affine") {
+                isEncrypt ? affineEncrypt() : affineDecrypt();
+            } else if (type === "playfair") {
+                isEncrypt ? playfairEncrypt() : playfairDecrypt();
+            } else {
+                isEncrypt ? feistelEncrypt() : feistelDecrypt();
+            }
+        }
+
+        // ===== Affine =====
+        function modInverse(a, m) {
+            for (let x = 1; x < m; x++) if ((a * x) % m === 1) return x;
+            return -1;
+        }
+
+        function affineEncrypt() {
+            const text = document.getElementById("inputText").value.toUpperCase();
+            const a = +keyA.value, b = +keyB.value;
+            let res = "";
+            for (let c of text) {
+                let i = chars.indexOf(c);
+                res += i !== -1 ? chars[(a * i + b) % m] : c;
+            }
+            outputText.value = res;
+        }
+
+        function affineDecrypt() {
+            const text = document.getElementById("inputText").value.toUpperCase();
+            const a = +keyA.value, b = +keyB.value;
+            const inv = modInverse(a, m);
+            let res = "";
+            for (let c of text) {
+                let i = chars.indexOf(c);
+                res += i !== -1 ? chars[(inv * (i - b + m)) % m] : c;
+            }
+            outputText.value = res;
+        }
+
+        // ===== Playfair =====
+        function generateGrid(key) {
+            key = key.toUpperCase().replace(/J/g, "I");
+            let seen = new Set();
+            let grid = [];
+            let alphabet = "ABCDEFGHIKLMNOPQRSTUVWXYZ";
+
+            for (let c of key + alphabet) {
+                if (!seen.has(c) && alphabet.includes(c)) {
+                    seen.add(c);
+                    grid.push(c);
+                }
+            }
+            return grid;
+        }
+
+        function findPos(grid, c) {
+            let i = grid.indexOf(c);
+            return [Math.floor(i / 5), i % 5];
+        }
+
+        function playfairEncrypt() {
+            let text = inputText.value.toUpperCase().replace(/J/g, "I").replace(/[^A-Z]/g, "");
+            let key = pfKey.value;
+            let grid = generateGrid(key);
+            let res = "";
+
+            for (let i = 0; i < text.length; i += 2) {
+                let a = text[i];
+                let b = text[i + 1] || 'X';
+                let [r1, c1] = findPos(grid, a);
+                let [r2, c2] = findPos(grid, b);
+
+                if (r1 === r2) {
+                    res += grid[r1 * 5 + (c1 + 1) % 5] + grid[r2 * 5 + (c2 + 1) % 5];
+                } else if (c1 === c2) {
+                    res += grid[((r1 + 1) % 5) * 5 + c1] + grid[((r2 + 1) % 5) * 5 + c2];
+                } else {
+                    res += grid[r1 * 5 + c2] + grid[r2 * 5 + c1];
+                }
+            }
+            outputText.value = res;
+        }
+
+        function playfairDecrypt() {
+            let text = inputText.value.toUpperCase();
+            let key = pfKey.value;
+            let grid = generateGrid(key);
+            let res = "";
+
+            for (let i = 0; i < text.length; i += 2) {
+                let a = text[i], b = text[i + 1];
+                let [r1, c1] = findPos(grid, a);
+                let [r2, c2] = findPos(grid, b);
+
+                if (r1 === r2) {
+                    res += grid[r1 * 5 + (c1 + 4) % 5] + grid[r2 * 5 + (c2 + 4) % 5];
+                } else if (c1 === c2) {
+                    res += grid[((r1 + 4) % 5) * 5 + c1] + grid[((r2 + 4) % 5) * 5 + c2];
+                } else {
+                    res += grid[r1 * 5 + c2] + grid[r2 * 5 + c1];
+                }
+            }
+            outputText.value = res;
+        }
+
+        // ===== Feistel (simple 16-bit) =====
+        function feistelRound(L, R, key) {
+            let f = ((R << 8) | (R >> 8)) ^ key; // shift + XOR
+            return [R, L ^ f];
+        }
+
+        function feistelEncrypt() {
+            let text = inputText.value;
+            let result = "";
+            let key1 = 0xAAAA, key2 = 0x5555;
+
+            for (let c of text) {
+                let val = c.charCodeAt(0);
+                let L = val >> 8, R = val & 0xFF;
+
+                [L, R] = feistelRound(L, R, key1);
+                [L, R] = feistelRound(L, R, key2);
+                [L, R] = feistelRound(L, R, key1);
+                [L, R] = feistelRound(L, R, key2);
+
+                result += String.fromCharCode((L << 8) | R);
+            }
+            outputText.value = result;
+        }
+
+        function feistelDecrypt() {
+            let text = inputText.value;
+            let result = "";
+            let key1 = 0xAAAA, key2 = 0x5555;
+
+            for (let c of text) {
+                let val = c.charCodeAt(0);
+                let L = val >> 8, R = val & 0xFF;
+
+                [L, R] = feistelRound(L, R, key2);
+                [L, R] = feistelRound(L, R, key1);
+                [L, R] = feistelRound(L, R, key2);
+                [L, R] = feistelRound(L, R, key1);
+
+                result += String.fromCharCode((L << 8) | R);
+            }
+            outputText.value = result;
+        }
+    </script>
+</body>
+
+</html>
