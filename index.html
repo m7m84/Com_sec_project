@@ -54,6 +54,12 @@
         });
 
         function process(isEncrypt) {
+            const text = inputText.value;
+            if (!text) {
+                alert("Please enter text");
+                return;
+            }
+
             const type = cipherSelect.value;
             if (type === "affine") {
                 isEncrypt ? affineEncrypt() : affineDecrypt();
@@ -64,6 +70,16 @@
             }
         }
 
+        // ===== Helper: GCD =====
+        function gcd(a, b) {
+            while (b !== 0) {
+                let t = b;
+                b = a % b;
+                a = t;
+            }
+            return a;
+        }
+
         // ===== Affine =====
         function modInverse(a, m) {
             for (let x = 1; x < m; x++) if ((a * x) % m === 1) return x;
@@ -71,8 +87,14 @@
         }
 
         function affineEncrypt() {
-            const text = document.getElementById("inputText").value.toUpperCase();
+            const text = inputText.value.toUpperCase();
             const a = +keyA.value, b = +keyB.value;
+
+            if (gcd(a, m) !== 1) {
+                alert("Key 'a' must be coprime with " + m);
+                return;
+            }
+
             let res = "";
             for (let c of text) {
                 let i = chars.indexOf(c);
@@ -82,8 +104,14 @@
         }
 
         function affineDecrypt() {
-            const text = document.getElementById("inputText").value.toUpperCase();
+            const text = inputText.value.toUpperCase();
             const a = +keyA.value, b = +keyB.value;
+
+            if (gcd(a, m) !== 1) {
+                alert("Key 'a' must be coprime with " + m);
+                return;
+            }
+
             const inv = modInverse(a, m);
             let res = "";
             for (let c of text) {
@@ -114,15 +142,44 @@
             return [Math.floor(i / 5), i % 5];
         }
 
+        // FIXED preprocessing
+        function prepareText(text) {
+            text = text.toUpperCase().replace(/J/g, "I").replace(/[^A-Z]/g, "");
+            let result = "";
+
+            for (let i = 0; i < text.length; i++) {
+                let a = text[i];
+                let b = text[i + 1];
+
+                if (a === b) {
+                    result += a + 'X';
+                } else {
+                    result += a;
+                    if (b) {
+                        result += b;
+                        i++;
+                    }
+                }
+            }
+
+            if (result.length % 2 !== 0) result += 'X';
+            return result;
+        }
+
         function playfairEncrypt() {
-            let text = inputText.value.toUpperCase().replace(/J/g, "I").replace(/[^A-Z]/g, "");
             let key = pfKey.value;
+            if (!key) {
+                alert("Enter Playfair keyword");
+                return;
+            }
+
+            let text = prepareText(inputText.value);
             let grid = generateGrid(key);
             let res = "";
 
             for (let i = 0; i < text.length; i += 2) {
                 let a = text[i];
-                let b = text[i + 1] || 'X';
+                let b = text[i + 1];
                 let [r1, c1] = findPos(grid, a);
                 let [r2, c2] = findPos(grid, b);
 
@@ -134,12 +191,18 @@
                     res += grid[r1 * 5 + c2] + grid[r2 * 5 + c1];
                 }
             }
+
             outputText.value = res;
         }
 
         function playfairDecrypt() {
-            let text = inputText.value.toUpperCase();
             let key = pfKey.value;
+            if (!key) {
+                alert("Enter Playfair keyword");
+                return;
+            }
+
+            let text = inputText.value.toUpperCase().replace(/[^A-Z]/g, "");
             let grid = generateGrid(key);
             let res = "";
 
@@ -156,12 +219,13 @@
                     res += grid[r1 * 5 + c2] + grid[r2 * 5 + c1];
                 }
             }
+
             outputText.value = res;
         }
 
-        // ===== Feistel=====
+        // ===== Feistel =====
         function feistelRound(L, R, key) {
-            let f = ((R << 8) | (R >> 8)) ^ key; // shift + XOR
+            let f = ((R << 8) | (R >> 8)) ^ key;
             return [R, L ^ f];
         }
 
