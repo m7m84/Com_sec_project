@@ -159,7 +159,7 @@
             outputText.value = res;
         }
 
-        // ===== Feistel (simple 16-bit) =====
+        // ===== Feistel=====
         function feistelRound(L, R, key) {
             let f = ((R << 8) | (R >> 8)) ^ key; // shift + XOR
             return [R, L ^ f];
